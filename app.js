@@ -1,14 +1,17 @@
 const storageKey = "fit-note-v1";
 
 const state = loadState();
+let activeChart = "weight";
 
 const goalForm = document.querySelector("#goalForm");
 const logForm = document.querySelector("#logForm");
 const tabs = document.querySelectorAll(".tab");
+const chartTabs = document.querySelectorAll(".chart-tab");
 const views = {
   today: document.querySelector("#todayView"),
   progress: document.querySelector("#progressView"),
   history: document.querySelector("#historyView"),
+  settings: document.querySelector("#settingsView"),
 };
 
 function loadState() {
@@ -28,12 +31,28 @@ function loadState() {
     return saved
       ? {
           goal: { ...fallback.goal, ...saved.goal },
-          logs: Array.isArray(saved.logs) ? saved.logs : [],
+          logs: Array.isArray(saved.logs) ? saved.logs.map(normalizeLog).filter(Boolean) : [],
         }
       : fallback;
   } catch {
     return fallback;
   }
+}
+
+function normalizeLog(log) {
+  if (!log || !log.date || !Number.isFinite(Number(log.weight))) return null;
+  return {
+    date: log.date,
+    weight: Number(log.weight),
+    bodyFat: numberValue(log.bodyFat),
+    calories: numberValue(log.calories),
+    exerciseMinutes: numberValue(log.exerciseMinutes),
+    protein: numberValue(log.protein),
+    fat: numberValue(log.fat),
+    carbs: numberValue(log.carbs),
+    note: typeof log.note === "string" ? log.note : "",
+    tags: Array.isArray(log.tags) ? log.tags : [],
+  };
 }
 
 function saveState() {
@@ -53,7 +72,7 @@ function localDateString(date) {
 
 function numberValue(value) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && value !== "" ? parsed : null;
+  return Number.isFinite(parsed) && value !== "" && value !== null ? parsed : null;
 }
 
 function formatSigned(value, suffix = "") {
@@ -67,13 +86,15 @@ function sortedLogs() {
 }
 
 function latestLog() {
-  const logs = sortedLogs();
-  return logs.at(-1) || null;
+  return sortedLogs().at(-1) || null;
 }
 
 function latestBodyFatLog() {
-  const logs = sortedLogs();
-  return logs.filter((log) => Number.isFinite(log.bodyFat)).at(-1) || null;
+  return sortedLogs().filter((log) => Number.isFinite(log.bodyFat)).at(-1) || null;
+}
+
+function findLogByDate(date) {
+  return state.logs.find((log) => log.date === date) || null;
 }
 
 function daysUntilDeadline() {
@@ -95,7 +116,23 @@ function fillForms() {
     if (input) input.value = value;
   });
 
-  logForm.elements.date.value = today();
+  logForm.elements.date.value = logForm.elements.date.value || today();
+  populateLogForm(logForm.elements.date.value);
+}
+
+function populateLogForm(date) {
+  const existing = findLogByDate(date);
+  const fields = ["weight", "bodyFat", "calories", "exerciseMinutes", "protein", "fat", "carbs", "note"];
+  fields.forEach((field) => {
+    const input = logForm.elements[field];
+    if (!input) return;
+    input.value = existing?.[field] ?? "";
+  });
+
+  logForm.querySelectorAll('input[name="tags"]').forEach((input) => {
+    input.checked = Boolean(existing?.tags?.includes(input.value));
+  });
+  updateTodayStatus();
 }
 
 function calculateTargetCalories() {
@@ -112,48 +149,62 @@ function calculateTargetCalories() {
   return Math.round(Math.max(1200, maintenance - dailyDeficit));
 }
 
+function summaryStatus(recent, progress) {
+  if (progress >= 100) return { className: "is-stable", label: "目標到達です。維持ペースへ切り替えましょう" };
+  if (Number.isFinite(recent) && recent < -1.2) return { className: "is-alert", label: "体重の落ち方が速めです" };
+  if (Number.isFinite(recent) && recent > 0.4) return { className: "is-caution", label: "直近は少し増えています" };
+  if (Number.isFinite(recent)) return { className: "is-stable", label: "良いペースです" };
+  return { className: "is-neutral", label: "記録を追加すると傾向を表示します" };
+}
+
 function updateSummary() {
   const current = numberValue(state.goal.currentWeight);
   const goal = numberValue(state.goal.goalWeight);
+  const logs = sortedLogs();
+  const weights = logs.map((log) => log.weight).filter(Number.isFinite);
+  const recent = weights.length > 1 ? weights.at(-1) - weights[Math.max(0, weights.length - 8)] : null;
   const last = latestLog();
   const targetCalories = calculateTargetCalories();
+  const todayLog = findLogByDate(today());
   const ring = document.querySelector("#goalRing");
   const ringValue = document.querySelector("#ringValue");
+  const summaryPanel = document.querySelector("#summaryPanel");
   const paceLabel = document.querySelector("#paceLabel");
   const weightDelta = document.querySelector("#weightDelta");
   const calorieTarget = document.querySelector("#calorieTarget");
+  const todayBudget = document.querySelector("#todayBudget");
 
   let progress = 0;
-  let deltaText = "-- kg";
+  let deltaText = "変化 -- kg";
 
   if (current && goal && last) {
     const total = current - goal;
     const done = current - last.weight;
     progress = total === 0 ? 100 : Math.max(0, Math.min(100, (done / total) * 100));
-    deltaText = formatSigned(last.weight - current, " kg");
+    deltaText = `変化 ${formatSigned(last.weight - current, " kg")}`;
   }
 
+  const status = summaryStatus(recent, progress);
+  summaryPanel.classList.remove("is-stable", "is-neutral", "is-caution", "is-alert");
+  summaryPanel.classList.add(status.className);
   ring.style.background = `conic-gradient(var(--mint) ${progress * 3.6}deg, var(--line) 0deg)`;
   ringValue.textContent = `${Math.round(progress)}%`;
+  paceLabel.textContent = !current || !goal ? "目標を設定するとペースを表示します" : status.label;
   weightDelta.textContent = deltaText;
-  calorieTarget.textContent = targetCalories ? `目安 ${targetCalories} kcal / 日` : "目安 -- kcal / 日";
+  calorieTarget.textContent = targetCalories ? `今日の目安 ${targetCalories} kcal` : "今日の目安 -- kcal";
 
-  if (!current || !goal) {
-    paceLabel.textContent = "目標を設定するとペースを表示します";
-  } else if (!last) {
-    paceLabel.textContent = "今日の体重を記録すると進捗を表示します";
-  } else if (progress >= 100) {
-    paceLabel.textContent = "目標到達です。維持ペースへ切り替えましょう";
+  if (targetCalories && Number.isFinite(todayLog?.calories)) {
+    todayBudget.textContent = `あと ${targetCalories - todayLog.calories} kcal`;
   } else {
-    paceLabel.textContent = "焦らず週平均で見ていきましょう";
+    todayBudget.textContent = targetCalories ? `${targetCalories} kcal` : "-- kcal";
   }
 }
 
 function updateProgress() {
   const logs = sortedLogs();
   const weights = logs.map((log) => log.weight).filter(Number.isFinite);
-  const lastSeven = weights.slice(-7);
   const bodyFatValues = logs.map((log) => log.bodyFat).filter(Number.isFinite);
+  const lastSeven = weights.slice(-7);
   const lastSevenBodyFat = bodyFatValues.slice(-7);
   const average = lastSeven.length ? lastSeven.reduce((sum, value) => sum + value, 0) / lastSeven.length : null;
   const bodyFatAverage = lastSevenBodyFat.length
@@ -171,13 +222,13 @@ function updateProgress() {
 
   document.querySelector("#averageWeight").textContent = average ? `${average.toFixed(1)} kg` : "-- kg";
   document.querySelector("#recentChange").textContent = Number.isFinite(recent) ? formatSigned(recent, " kg") : "-- kg";
-  document.querySelector("#logCount").textContent = `${logs.length}日`;
-  document.querySelector("#bmiValue").textContent = bmi ? bmi.toFixed(1) : "--";
   document.querySelector("#remainingWeight").textContent = Number.isFinite(remaining) ? `${remaining.toFixed(1)} kg` : "-- kg";
-  document.querySelector("#daysLeft").textContent = Number.isFinite(daysLeft) ? `${Math.max(0, daysLeft)}日` : "--日";
   document.querySelector("#averageBodyFat").textContent = bodyFatAverage ? `${bodyFatAverage.toFixed(1)}%` : "--%";
   document.querySelector("#fatMass").textContent = Number.isFinite(fatMass) ? `${fatMass.toFixed(1)} kg` : "-- kg";
   document.querySelector("#leanMass").textContent = Number.isFinite(leanMass) ? `${leanMass.toFixed(1)} kg` : "-- kg";
+  document.querySelector("#bmiValue").textContent = bmi ? bmi.toFixed(1) : "--";
+  document.querySelector("#daysLeft").textContent = Number.isFinite(daysLeft) ? `${Math.max(0, daysLeft)}日` : "--日";
+  document.querySelector("#logCount").textContent = `${logs.length}日`;
   document.querySelector("#coachMessage").textContent = coachMessage(logs, recent);
   drawChart(logs);
 }
@@ -189,28 +240,39 @@ function coachMessage(logs, recent) {
   return "良いペースです。食事内容を大きく変えず、歩数やたんぱく質を安定させると続けやすくなります。";
 }
 
+function chartConfig() {
+  const configs = {
+    weight: { field: "weight", label: "体重", unit: "kg", color: "#2d7c63", padding: 0.4 },
+    bodyFat: { field: "bodyFat", label: "体脂肪率", unit: "%", color: "#3b8ea5", padding: 0.5 },
+    calories: { field: "calories", label: "摂取kcal", unit: "kcal", color: "#d99d2b", padding: 80 },
+  };
+  return configs[activeChart];
+}
+
 function drawChart(logs) {
   const canvas = document.querySelector("#weightChart");
   const context = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
-  context.clearRect(0, 0, width, height);
+  const config = chartConfig();
+  const points = logs.filter((log) => Number.isFinite(log[config.field]));
 
+  context.clearRect(0, 0, width, height);
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
 
-  if (logs.length < 2) {
+  if (points.length < 2) {
     context.fillStyle = "#6a7480";
-    context.font = "26px sans-serif";
+    context.font = "24px sans-serif";
     context.textAlign = "center";
-    context.fillText("記録を追加するとグラフを表示", width / 2, height / 2);
+    context.fillText(`${config.label}を2日以上記録`, width / 2, height / 2);
     return;
   }
 
-  const values = logs.map((log) => log.weight);
-  const min = Math.min(...values) - 0.4;
-  const max = Math.max(...values) + 0.4;
-  const left = 46;
+  const values = points.map((log) => log[config.field]);
+  const min = Math.min(...values) - config.padding;
+  const max = Math.max(...values) + config.padding;
+  const left = 58;
   const right = 20;
   const top = 24;
   const bottom = 42;
@@ -227,29 +289,29 @@ function drawChart(logs) {
     context.stroke();
   }
 
-  context.strokeStyle = "#2d7c63";
+  context.strokeStyle = config.color;
   context.lineWidth = 5;
   context.lineJoin = "round";
   context.lineCap = "round";
   context.beginPath();
-  logs.forEach((log, index) => {
-    const x = left + (plotWidth * index) / (logs.length - 1);
-    const y = top + plotHeight - ((log.weight - min) / (max - min)) * plotHeight;
+  points.forEach((log, index) => {
+    const x = left + (plotWidth * index) / (points.length - 1);
+    const y = top + plotHeight - ((log[config.field] - min) / (max - min)) * plotHeight;
     if (index === 0) context.moveTo(x, y);
     else context.lineTo(x, y);
   });
   context.stroke();
 
   context.fillStyle = "#17202a";
-  context.font = "22px sans-serif";
+  context.font = "20px sans-serif";
   context.textAlign = "left";
-  context.fillText(`${max.toFixed(1)}kg`, 4, top + 8);
-  context.fillText(`${min.toFixed(1)}kg`, 4, height - bottom + 8);
+  context.fillText(`${max.toFixed(config.field === "calories" ? 0 : 1)}${config.unit}`, 4, top + 8);
+  context.fillText(`${min.toFixed(config.field === "calories" ? 0 : 1)}${config.unit}`, 4, height - bottom + 8);
 
-  context.fillStyle = "#3b8ea5";
-  logs.forEach((log, index) => {
-    const x = left + (plotWidth * index) / (logs.length - 1);
-    const y = top + plotHeight - ((log.weight - min) / (max - min)) * plotHeight;
+  context.fillStyle = config.color;
+  points.forEach((log, index) => {
+    const x = left + (plotWidth * index) / (points.length - 1);
+    const y = top + plotHeight - ((log[config.field] - min) / (max - min)) * plotHeight;
     context.beginPath();
     context.arc(x, y, 7, 0, Math.PI * 2);
     context.fill();
@@ -259,23 +321,50 @@ function drawChart(logs) {
 function updateHistory() {
   const list = document.querySelector("#historyList");
   const template = document.querySelector("#historyItemTemplate");
+  const logs = sortedLogs();
   list.replaceChildren();
 
-  sortedLogs()
+  logs
+    .slice()
     .reverse()
     .forEach((log) => {
+      const originalIndex = logs.findIndex((entry) => entry.date === log.date);
+      const previous = originalIndex > 0 ? logs[originalIndex - 1] : null;
       const item = template.content.firstElementChild.cloneNode(true);
+      const delta = previous ? formatSigned(log.weight - previous.weight, " kg") : "-- kg";
+      const bodyFat = Number.isFinite(log.bodyFat) ? ` / ${log.bodyFat.toFixed(1)}%` : "";
+      const calories = Number.isFinite(log.calories) ? `${log.calories} kcal` : "-- kcal";
+
       item.querySelector('[data-field="date"]').textContent = log.date;
+      item.querySelector('[data-field="delta"]').textContent = `前回比 ${delta}`;
       item.querySelector('[data-field="note"]').textContent = log.note || "メモなし";
       item.querySelector('[data-field="weight"]').textContent = `${log.weight.toFixed(1)} kg`;
-      const bodyFat = Number.isFinite(log.bodyFat) ? ` / ${log.bodyFat.toFixed(1)}%` : "";
-      item.querySelector('[data-field="calories"]').textContent = log.calories ? `${log.calories} kcal${bodyFat}` : `-- kcal${bodyFat}`;
+      item.querySelector('[data-field="details"]').textContent = `${calories}${bodyFat}`;
+
+      const tagList = item.querySelector('[data-field="tags"]');
+      (log.tags || []).forEach((tag) => {
+        const chip = document.createElement("span");
+        chip.textContent = tag;
+        tagList.append(chip);
+      });
+
       item.querySelector(".delete-log").addEventListener("click", () => {
         state.logs = state.logs.filter((entry) => entry.date !== log.date);
         saveAndRender();
+        populateLogForm(logForm.elements.date.value);
       });
       list.append(item);
     });
+}
+
+function updateTodayStatus() {
+  const selectedDate = logForm.elements.date.value;
+  const existing = findLogByDate(selectedDate);
+  const badge = document.querySelector("#todayStatus");
+  const button = document.querySelector("#logSubmitButton");
+  badge.textContent = existing ? "記録済み" : "未記録";
+  badge.classList.toggle("is-done", Boolean(existing));
+  button.textContent = existing ? "今日の記録を更新" : "今日を記録";
 }
 
 function saveAndRender() {
@@ -283,6 +372,7 @@ function saveAndRender() {
   updateSummary();
   updateProgress();
   updateHistory();
+  updateTodayStatus();
 }
 
 goalForm.addEventListener("submit", (event) => {
@@ -294,22 +384,28 @@ goalForm.addEventListener("submit", (event) => {
 logForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(logForm).entries());
-  const log = {
+  const formData = new FormData(logForm);
+  const log = normalizeLog({
     date: data.date,
-    weight: Number(data.weight),
-    bodyFat: numberValue(data.bodyFat),
-    calories: numberValue(data.calories),
-    exerciseMinutes: numberValue(data.exerciseMinutes),
-    protein: numberValue(data.protein),
-    fat: numberValue(data.fat),
-    carbs: numberValue(data.carbs),
+    weight: data.weight,
+    bodyFat: data.bodyFat,
+    calories: data.calories,
+    exerciseMinutes: data.exerciseMinutes,
+    protein: data.protein,
+    fat: data.fat,
+    carbs: data.carbs,
     note: data.note.trim(),
-  };
+    tags: formData.getAll("tags"),
+  });
 
+  if (!log) return;
   state.logs = state.logs.filter((entry) => entry.date !== log.date).concat(log);
   saveAndRender();
-  logForm.reset();
-  logForm.elements.date.value = today();
+  populateLogForm(log.date);
+});
+
+logForm.elements.date.addEventListener("change", (event) => {
+  populateLogForm(event.target.value);
 });
 
 tabs.forEach((tab) => {
@@ -318,6 +414,14 @@ tabs.forEach((tab) => {
     Object.entries(views).forEach(([name, view]) => {
       view.classList.toggle("is-active", tab.dataset.tab === name);
     });
+  });
+});
+
+chartTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    activeChart = tab.dataset.chart;
+    chartTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
+    drawChart(sortedLogs());
   });
 });
 
@@ -336,6 +440,7 @@ document.querySelector("#sampleButton").addEventListener("click", () => {
       fat: 48,
       carbs: 205,
       note: index % 3 === 0 ? "散歩あり" : "",
+      tags: index % 2 === 0 ? ["運動あり"] : ["外食"],
     };
   });
 
@@ -348,7 +453,10 @@ document.querySelector("#sampleButton").addEventListener("click", () => {
       deadline: localDateString(new Date(Date.now() + 86400000 * 84)),
       maintenanceCalories: "2200",
     };
-    fillForms();
+    Object.entries(state.goal).forEach(([key, value]) => {
+      const input = goalForm.elements[key];
+      if (input) input.value = value;
+    });
   }
   saveAndRender();
 });
@@ -357,6 +465,7 @@ document.querySelector("#clearButton").addEventListener("click", () => {
   if (!confirm("すべての記録を削除しますか？")) return;
   state.logs = [];
   saveAndRender();
+  populateLogForm(logForm.elements.date.value);
 });
 
 document.querySelector("#importButton").addEventListener("click", () => {
@@ -374,19 +483,7 @@ document.querySelector("#importFile").addEventListener("change", async (event) =
     }
 
     state.goal = { ...state.goal, ...(imported.goal || {}) };
-    state.logs = imported.logs
-      .filter((log) => log.date && Number.isFinite(Number(log.weight)))
-      .map((log) => ({
-        date: log.date,
-        weight: Number(log.weight),
-        bodyFat: numberValue(log.bodyFat),
-        calories: numberValue(log.calories),
-        exerciseMinutes: numberValue(log.exerciseMinutes),
-        protein: numberValue(log.protein),
-        fat: numberValue(log.fat),
-        carbs: numberValue(log.carbs),
-        note: typeof log.note === "string" ? log.note : "",
-      }));
+    state.logs = imported.logs.map(normalizeLog).filter(Boolean);
     fillForms();
     saveAndRender();
   } catch {

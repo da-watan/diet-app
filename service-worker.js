@@ -1,4 +1,4 @@
-const cacheName = "fit-note-v2";
+const cacheName = "fit-note-v3";
 const assets = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const assets = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(assets)));
 });
 
@@ -16,7 +17,8 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key)))),
+      .then((keys) => Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
   );
 });
 

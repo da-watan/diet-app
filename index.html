@@ -15,22 +15,26 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">Fit Note</p>
-          <h1>今日の調子</h1>
+          <h1>今日の記録</h1>
         </div>
         <button class="icon-button" id="exportButton" aria-label="データを書き出し" title="データを書き出し">
           <span aria-hidden="true">↓</span>
         </button>
       </header>
 
-      <section class="summary-panel" aria-label="進捗サマリー">
+      <section class="summary-panel is-neutral" id="summaryPanel" aria-label="今日のサマリー">
         <div class="goal-ring" id="goalRing">
           <span id="ringValue">--</span>
           <small>達成率</small>
         </div>
         <div class="summary-copy">
-          <p id="paceLabel">目標を設定するとペースを表示します</p>
-          <strong id="weightDelta">-- kg</strong>
-          <span id="calorieTarget">目安 -- kcal / 日</span>
+          <div class="status-line">
+            <span class="status-dot" aria-hidden="true"></span>
+            <p id="paceLabel">目標を設定するとペースを表示します</p>
+          </div>
+          <strong id="todayBudget">-- kcal</strong>
+          <span id="calorieTarget">今日の目安 -- kcal</span>
+          <span id="weightDelta">変化 -- kg</span>
         </div>
       </section>
 
@@ -38,9 +42,151 @@
         <button class="tab is-active" data-tab="today">今日</button>
         <button class="tab" data-tab="progress">進捗</button>
         <button class="tab" data-tab="history">履歴</button>
+        <button class="tab" data-tab="settings">設定</button>
       </nav>
 
       <section class="view is-active" id="todayView">
+        <form class="log-form" id="logForm">
+          <div class="form-head">
+            <span class="log-badge" id="todayStatus">未記録</span>
+            <label>
+              日付
+              <input name="date" type="date" required />
+            </label>
+          </div>
+          <div class="input-row">
+            <label>
+              体重
+              <input inputmode="decimal" name="weight" type="number" step="0.1" min="20" placeholder="71.4" required />
+            </label>
+            <label>
+              体脂肪率
+              <input inputmode="decimal" name="bodyFat" type="number" step="0.1" min="1" max="80" placeholder="24.5" />
+            </label>
+          </div>
+          <div class="input-row">
+            <label>
+              摂取kcal
+              <input inputmode="numeric" name="calories" type="number" step="1" min="0" placeholder="1850" />
+            </label>
+            <label>
+              運動
+              <input inputmode="numeric" name="exerciseMinutes" type="number" step="1" min="0" placeholder="30" />
+            </label>
+          </div>
+
+          <details class="detail-fields">
+            <summary>詳細入力</summary>
+            <div class="macro-row">
+              <label>
+                P
+                <input inputmode="numeric" name="protein" type="number" min="0" placeholder="110" />
+              </label>
+              <label>
+                F
+                <input inputmode="numeric" name="fat" type="number" min="0" placeholder="45" />
+              </label>
+              <label>
+                C
+                <input inputmode="numeric" name="carbs" type="number" min="0" placeholder="210" />
+              </label>
+            </div>
+          </details>
+
+          <fieldset class="tag-field">
+            <legend>タグ</legend>
+            <label><input type="checkbox" name="tags" value="睡眠不足" />睡眠不足</label>
+            <label><input type="checkbox" name="tags" value="外食" />外食</label>
+            <label><input type="checkbox" name="tags" value="運動あり" />運動あり</label>
+            <label><input type="checkbox" name="tags" value="空腹強め" />空腹強め</label>
+            <label><input type="checkbox" name="tags" value="むくみ" />むくみ</label>
+          </fieldset>
+
+          <label>
+            メモ
+            <textarea name="note" rows="3" placeholder="空腹感、睡眠、運動など"></textarea>
+          </label>
+          <button class="primary-button" id="logSubmitButton" type="submit">今日を記録</button>
+        </form>
+      </section>
+
+      <section class="view" id="progressView">
+        <div class="metric-section">
+          <h2>体重</h2>
+          <div class="metric-grid">
+            <article>
+              <span>7日平均</span>
+              <strong id="averageWeight">-- kg</strong>
+            </article>
+            <article>
+              <span>直近変化</span>
+              <strong id="recentChange">-- kg</strong>
+            </article>
+            <article>
+              <span>残り</span>
+              <strong id="remainingWeight">-- kg</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="metric-section">
+          <h2>体脂肪</h2>
+          <div class="metric-grid">
+            <article>
+              <span>7日平均</span>
+              <strong id="averageBodyFat">--%</strong>
+            </article>
+            <article>
+              <span>脂肪量</span>
+              <strong id="fatMass">-- kg</strong>
+            </article>
+            <article>
+              <span>除脂肪体重</span>
+              <strong id="leanMass">-- kg</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="metric-section">
+          <h2>目標</h2>
+          <div class="metric-grid">
+            <article>
+              <span>BMI</span>
+              <strong id="bmiValue">--</strong>
+            </article>
+            <article>
+              <span>期限まで</span>
+              <strong id="daysLeft">--日</strong>
+            </article>
+            <article>
+              <span>記録日数</span>
+              <strong id="logCount">0日</strong>
+            </article>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-switch" aria-label="グラフ切り替え">
+            <button class="chart-tab is-active" data-chart="weight" type="button">体重</button>
+            <button class="chart-tab" data-chart="bodyFat" type="button">体脂肪率</button>
+            <button class="chart-tab" data-chart="calories" type="button">摂取kcal</button>
+          </div>
+          <canvas id="weightChart" width="640" height="360" aria-label="推移グラフ"></canvas>
+        </div>
+        <div class="coach-card" id="coachMessage">数日分記録すると傾向を表示します。</div>
+      </section>
+
+      <section class="view" id="historyView">
+        <div class="history-actions">
+          <button class="secondary-button" id="sampleButton" type="button">サンプル</button>
+          <button class="secondary-button" id="importButton" type="button">復元</button>
+          <button class="danger-button" id="clearButton" type="button">全削除</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden />
+        </div>
+        <ol class="history-list" id="historyList"></ol>
+      </section>
+
+      <section class="view" id="settingsView">
         <form class="settings-grid" id="goalForm">
           <label>
             現在体重
@@ -64,119 +210,21 @@
           </label>
           <button class="primary-button" type="submit">目標を保存</button>
         </form>
-
-        <form class="log-form" id="logForm">
-          <label>
-            日付
-            <input name="date" type="date" required />
-          </label>
-          <div class="input-row">
-            <label>
-              体重
-              <input inputmode="decimal" name="weight" type="number" step="0.1" min="20" placeholder="71.4" required />
-            </label>
-            <label>
-              体脂肪率
-              <input inputmode="decimal" name="bodyFat" type="number" step="0.1" min="1" max="80" placeholder="24.5" />
-            </label>
-          </div>
-          <div class="input-row">
-            <label>
-              摂取kcal
-              <input inputmode="numeric" name="calories" type="number" step="1" min="0" placeholder="1850" />
-            </label>
-            <label>
-              運動
-              <input inputmode="numeric" name="exerciseMinutes" type="number" step="1" min="0" placeholder="30" />
-            </label>
-          </div>
-          <div class="macro-row">
-            <label>
-              P
-              <input inputmode="numeric" name="protein" type="number" min="0" placeholder="110" />
-            </label>
-            <label>
-              F
-              <input inputmode="numeric" name="fat" type="number" min="0" placeholder="45" />
-            </label>
-            <label>
-              C
-              <input inputmode="numeric" name="carbs" type="number" min="0" placeholder="210" />
-            </label>
-          </div>
-          <label>
-            メモ
-            <textarea name="note" rows="3" placeholder="空腹感、睡眠、運動など"></textarea>
-          </label>
-          <button class="primary-button" type="submit">今日を記録</button>
-        </form>
-      </section>
-
-      <section class="view" id="progressView">
-        <div class="metric-grid">
-          <article>
-            <span>7日平均</span>
-            <strong id="averageWeight">-- kg</strong>
-          </article>
-          <article>
-            <span>直近変化</span>
-            <strong id="recentChange">-- kg</strong>
-          </article>
-          <article>
-            <span>記録日数</span>
-            <strong id="logCount">0日</strong>
-          </article>
-          <article>
-            <span>BMI</span>
-            <strong id="bmiValue">--</strong>
-          </article>
-          <article>
-            <span>残り</span>
-            <strong id="remainingWeight">-- kg</strong>
-          </article>
-          <article>
-            <span>期限まで</span>
-            <strong id="daysLeft">--日</strong>
-          </article>
-          <article>
-            <span>体脂肪7日平均</span>
-            <strong id="averageBodyFat">--%</strong>
-          </article>
-          <article>
-            <span>脂肪量</span>
-            <strong id="fatMass">-- kg</strong>
-          </article>
-          <article>
-            <span>除脂肪体重</span>
-            <strong id="leanMass">-- kg</strong>
-          </article>
-        </div>
-        <div class="chart-card">
-          <canvas id="weightChart" width="640" height="360" aria-label="体重推移グラフ"></canvas>
-        </div>
-        <div class="coach-card" id="coachMessage">数日分記録すると傾向を表示します。</div>
-      </section>
-
-      <section class="view" id="historyView">
-        <div class="history-actions">
-          <button class="secondary-button" id="sampleButton" type="button">サンプル</button>
-          <button class="secondary-button" id="importButton" type="button">復元</button>
-          <button class="danger-button" id="clearButton" type="button">全削除</button>
-          <input id="importFile" type="file" accept="application/json,.json" hidden />
-        </div>
-        <ol class="history-list" id="historyList"></ol>
       </section>
     </main>
 
     <template id="historyItemTemplate">
       <li>
-        <div>
+        <div class="timeline-mark" aria-hidden="true"></div>
+        <div class="history-main">
           <strong data-field="date"></strong>
-          <span data-field="note"></span>
+          <span data-field="delta"></span>
+          <p data-field="note"></p>
+          <div class="tag-list" data-field="tags"></div>
         </div>
         <div class="history-values">
           <b data-field="weight"></b>
-          <small data-field="calories"></small>
+          <small data-field="details"></small>
         </div>
         <button class="delete-log" type="button" aria-label="記録を削除">×</button>
       </li>
