@@ -71,6 +71,11 @@ function latestLog() {
   return logs.at(-1) || null;
 }
 
+function latestBodyFatLog() {
+  const logs = sortedLogs();
+  return logs.filter((log) => Number.isFinite(log.bodyFat)).at(-1) || null;
+}
+
 function daysUntilDeadline() {
   if (!state.goal.deadline) return null;
   const deadline = new Date(`${state.goal.deadline}T00:00:00`);
@@ -148,13 +153,21 @@ function updateProgress() {
   const logs = sortedLogs();
   const weights = logs.map((log) => log.weight).filter(Number.isFinite);
   const lastSeven = weights.slice(-7);
+  const bodyFatValues = logs.map((log) => log.bodyFat).filter(Number.isFinite);
+  const lastSevenBodyFat = bodyFatValues.slice(-7);
   const average = lastSeven.length ? lastSeven.reduce((sum, value) => sum + value, 0) / lastSeven.length : null;
+  const bodyFatAverage = lastSevenBodyFat.length
+    ? lastSevenBodyFat.reduce((sum, value) => sum + value, 0) / lastSevenBodyFat.length
+    : null;
   const recent = weights.length > 1 ? weights.at(-1) - weights[Math.max(0, weights.length - 8)] : null;
   const goal = numberValue(state.goal.goalWeight);
   const last = latestLog();
+  const bodyFatLog = latestBodyFatLog();
   const bmi = calculateBmi(last?.weight || numberValue(state.goal.currentWeight));
   const remaining = last && goal ? Math.max(0, last.weight - goal) : null;
   const daysLeft = daysUntilDeadline();
+  const fatMass = bodyFatLog ? bodyFatLog.weight * (bodyFatLog.bodyFat / 100) : null;
+  const leanMass = bodyFatLog ? bodyFatLog.weight - fatMass : null;
 
   document.querySelector("#averageWeight").textContent = average ? `${average.toFixed(1)} kg` : "-- kg";
   document.querySelector("#recentChange").textContent = Number.isFinite(recent) ? formatSigned(recent, " kg") : "-- kg";
@@ -162,6 +175,9 @@ function updateProgress() {
   document.querySelector("#bmiValue").textContent = bmi ? bmi.toFixed(1) : "--";
   document.querySelector("#remainingWeight").textContent = Number.isFinite(remaining) ? `${remaining.toFixed(1)} kg` : "-- kg";
   document.querySelector("#daysLeft").textContent = Number.isFinite(daysLeft) ? `${Math.max(0, daysLeft)}日` : "--日";
+  document.querySelector("#averageBodyFat").textContent = bodyFatAverage ? `${bodyFatAverage.toFixed(1)}%` : "--%";
+  document.querySelector("#fatMass").textContent = Number.isFinite(fatMass) ? `${fatMass.toFixed(1)} kg` : "-- kg";
+  document.querySelector("#leanMass").textContent = Number.isFinite(leanMass) ? `${leanMass.toFixed(1)} kg` : "-- kg";
   document.querySelector("#coachMessage").textContent = coachMessage(logs, recent);
   drawChart(logs);
 }
@@ -252,7 +268,8 @@ function updateHistory() {
       item.querySelector('[data-field="date"]').textContent = log.date;
       item.querySelector('[data-field="note"]').textContent = log.note || "メモなし";
       item.querySelector('[data-field="weight"]').textContent = `${log.weight.toFixed(1)} kg`;
-      item.querySelector('[data-field="calories"]').textContent = log.calories ? `${log.calories} kcal` : "-- kcal";
+      const bodyFat = Number.isFinite(log.bodyFat) ? ` / ${log.bodyFat.toFixed(1)}%` : "";
+      item.querySelector('[data-field="calories"]').textContent = log.calories ? `${log.calories} kcal${bodyFat}` : `-- kcal${bodyFat}`;
       item.querySelector(".delete-log").addEventListener("click", () => {
         state.logs = state.logs.filter((entry) => entry.date !== log.date);
         saveAndRender();
@@ -280,7 +297,9 @@ logForm.addEventListener("submit", (event) => {
   const log = {
     date: data.date,
     weight: Number(data.weight),
+    bodyFat: numberValue(data.bodyFat),
     calories: numberValue(data.calories),
+    exerciseMinutes: numberValue(data.exerciseMinutes),
     protein: numberValue(data.protein),
     fat: numberValue(data.fat),
     carbs: numberValue(data.carbs),
@@ -310,7 +329,9 @@ document.querySelector("#sampleButton").addEventListener("click", () => {
     return {
       date: localDateString(date),
       weight: 72.4 - index * 0.18 + (index % 2) * 0.08,
+      bodyFat: 25.2 - index * 0.12 + (index % 2) * 0.05,
       calories: 1850 + (index % 3) * 80,
+      exerciseMinutes: index % 2 === 0 ? 30 : 0,
       protein: 110,
       fat: 48,
       carbs: 205,
@@ -358,7 +379,9 @@ document.querySelector("#importFile").addEventListener("change", async (event) =
       .map((log) => ({
         date: log.date,
         weight: Number(log.weight),
+        bodyFat: numberValue(log.bodyFat),
         calories: numberValue(log.calories),
+        exerciseMinutes: numberValue(log.exerciseMinutes),
         protein: numberValue(log.protein),
         fat: numberValue(log.fat),
         carbs: numberValue(log.carbs),

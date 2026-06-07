@@ -76,8 +76,18 @@
               <input inputmode="decimal" name="weight" type="number" step="0.1" min="20" placeholder="71.4" required />
             </label>
             <label>
+              体脂肪率
+              <input inputmode="decimal" name="bodyFat" type="number" step="0.1" min="1" max="80" placeholder="24.5" />
+            </label>
+          </div>
+          <div class="input-row">
+            <label>
               摂取kcal
               <input inputmode="numeric" name="calories" type="number" step="1" min="0" placeholder="1850" />
+            </label>
+            <label>
+              運動
+              <input inputmode="numeric" name="exerciseMinutes" type="number" step="1" min="0" placeholder="30" />
             </label>
           </div>
           <div class="macro-row">
@@ -127,6 +137,18 @@
           <article>
             <span>期限まで</span>
             <strong id="daysLeft">--日</strong>
+          </article>
+          <article>
+            <span>体脂肪7日平均</span>
+            <strong id="averageBodyFat">--%</strong>
+          </article>
+          <article>
+            <span>脂肪量</span>
+            <strong id="fatMass">-- kg</strong>
+          </article>
+          <article>
+            <span>除脂肪体重</span>
+            <strong id="leanMass">-- kg</strong>
           </article>
         </div>
         <div class="chart-card">

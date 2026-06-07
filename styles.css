@@ -285,7 +285,7 @@ textarea:focus {
 }
 
 .metric-grid article {
-  min-height: 84px;
+  min-height: 78px;
   padding: 12px 10px;
 }
 
@@ -385,5 +385,9 @@ canvas {
   .goal-ring {
     width: 92px;
     height: 92px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
