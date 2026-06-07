@@ -16,6 +16,7 @@ function loadState() {
     goal: {
       currentWeight: "",
       goalWeight: "",
+      height: "",
       deadline: "",
       maintenanceCalories: "",
     },
@@ -23,7 +24,13 @@ function loadState() {
   };
 
   try {
-    return JSON.parse(localStorage.getItem(storageKey)) || fallback;
+    const saved = JSON.parse(localStorage.getItem(storageKey));
+    return saved
+      ? {
+          goal: { ...fallback.goal, ...saved.goal },
+          logs: Array.isArray(saved.logs) ? saved.logs : [],
+        }
+      : fallback;
   } catch {
     return fallback;
   }
@@ -62,6 +69,19 @@ function sortedLogs() {
 function latestLog() {
   const logs = sortedLogs();
   return logs.at(-1) || null;
+}
+
+function daysUntilDeadline() {
+  if (!state.goal.deadline) return null;
+  const deadline = new Date(`${state.goal.deadline}T00:00:00`);
+  return Math.ceil((deadline - new Date()) / 86400000);
+}
+
+function calculateBmi(weight) {
+  const height = numberValue(state.goal.height);
+  if (!height || !weight) return null;
+  const meters = height / 100;
+  return weight / (meters * meters);
 }
 
 function fillForms() {
@@ -130,10 +150,18 @@ function updateProgress() {
   const lastSeven = weights.slice(-7);
   const average = lastSeven.length ? lastSeven.reduce((sum, value) => sum + value, 0) / lastSeven.length : null;
   const recent = weights.length > 1 ? weights.at(-1) - weights[Math.max(0, weights.length - 8)] : null;
+  const goal = numberValue(state.goal.goalWeight);
+  const last = latestLog();
+  const bmi = calculateBmi(last?.weight || numberValue(state.goal.currentWeight));
+  const remaining = last && goal ? Math.max(0, last.weight - goal) : null;
+  const daysLeft = daysUntilDeadline();
 
   document.querySelector("#averageWeight").textContent = average ? `${average.toFixed(1)} kg` : "-- kg";
   document.querySelector("#recentChange").textContent = Number.isFinite(recent) ? formatSigned(recent, " kg") : "-- kg";
   document.querySelector("#logCount").textContent = `${logs.length}日`;
+  document.querySelector("#bmiValue").textContent = bmi ? bmi.toFixed(1) : "--";
+  document.querySelector("#remainingWeight").textContent = Number.isFinite(remaining) ? `${remaining.toFixed(1)} kg` : "-- kg";
+  document.querySelector("#daysLeft").textContent = Number.isFinite(daysLeft) ? `${Math.max(0, daysLeft)}日` : "--日";
   document.querySelector("#coachMessage").textContent = coachMessage(logs, recent);
   drawChart(logs);
 }
@@ -295,6 +323,7 @@ document.querySelector("#sampleButton").addEventListener("click", () => {
     state.goal = {
       currentWeight: "72.4",
       goalWeight: "68.0",
+      height: "170.0",
       deadline: localDateString(new Date(Date.now() + 86400000 * 84)),
       maintenanceCalories: "2200",
     };
@@ -309,6 +338,41 @@ document.querySelector("#clearButton").addEventListener("click", () => {
   saveAndRender();
 });
 
+document.querySelector("#importButton").addEventListener("click", () => {
+  document.querySelector("#importFile").click();
+});
+
+document.querySelector("#importFile").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  if (!file) return;
+
+  try {
+    const imported = JSON.parse(await file.text());
+    if (!imported || typeof imported !== "object" || !Array.isArray(imported.logs)) {
+      throw new Error("Invalid backup");
+    }
+
+    state.goal = { ...state.goal, ...(imported.goal || {}) };
+    state.logs = imported.logs
+      .filter((log) => log.date && Number.isFinite(Number(log.weight)))
+      .map((log) => ({
+        date: log.date,
+        weight: Number(log.weight),
+        calories: numberValue(log.calories),
+        protein: numberValue(log.protein),
+        fat: numberValue(log.fat),
+        carbs: numberValue(log.carbs),
+        note: typeof log.note === "string" ? log.note : "",
+      }));
+    fillForms();
+    saveAndRender();
+  } catch {
+    alert("復元できませんでした。Fit Noteから書き出したJSONを選んでください。");
+  } finally {
+    event.target.value = "";
+  }
+});
+
 document.querySelector("#exportButton").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -318,6 +382,10 @@ document.querySelector("#exportButton").addEventListener("click", () => {
   anchor.click();
   URL.revokeObjectURL(url);
 });
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("service-worker.js").catch(() => {});
+}
 
 fillForms();
 saveAndRender();

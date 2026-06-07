@@ -203,6 +203,11 @@ form {
 .settings-grid label:nth-child(3),
 .settings-grid label:nth-child(4),
 .settings-grid button {
+  grid-column: auto;
+}
+
+.settings-grid .full-width,
+.settings-grid button {
   grid-column: span 2;
 }
 
@@ -317,7 +322,7 @@ canvas {
 
 .history-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 

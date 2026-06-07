@@ -1,0 +1,18 @@
+{
+  "name": "Fit Note",
+  "short_name": "Fit Note",
+  "description": "体重、カロリー、PFC、メモを記録するスマホ向けダイエットツール",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#2d7c63",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

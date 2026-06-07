@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2d7c63" />
+    <meta name="description" content="体重、カロリー、PFC、メモを記録するスマホ向けダイエットツール" />
     <title>Fit Note</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -13,7 +17,7 @@
           <p class="eyebrow">Fit Note</p>
           <h1>今日の調子</h1>
         </div>
-        <button class="icon-button" id="exportButton" aria-label="データを書き出し">
+        <button class="icon-button" id="exportButton" aria-label="データを書き出し" title="データを書き出し">
           <span aria-hidden="true">↓</span>
         </button>
       </header>
@@ -47,12 +51,16 @@
             <input inputmode="decimal" name="goalWeight" type="number" step="0.1" min="20" placeholder="66.0" />
           </label>
           <label>
-            期限
-            <input name="deadline" type="date" />
+            身長
+            <input inputmode="decimal" name="height" type="number" step="0.1" min="100" placeholder="170.0" />
           </label>
           <label>
             維持カロリー
             <input inputmode="numeric" name="maintenanceCalories" type="number" step="10" min="800" placeholder="2200" />
+          </label>
+          <label class="full-width">
+            期限
+            <input name="deadline" type="date" />
           </label>
           <button class="primary-button" type="submit">目標を保存</button>
         </form>
@@ -108,6 +116,18 @@
             <span>記録日数</span>
             <strong id="logCount">0日</strong>
           </article>
+          <article>
+            <span>BMI</span>
+            <strong id="bmiValue">--</strong>
+          </article>
+          <article>
+            <span>残り</span>
+            <strong id="remainingWeight">-- kg</strong>
+          </article>
+          <article>
+            <span>期限まで</span>
+            <strong id="daysLeft">--日</strong>
+          </article>
         </div>
         <div class="chart-card">
           <canvas id="weightChart" width="640" height="360" aria-label="体重推移グラフ"></canvas>
@@ -117,8 +137,10 @@
 
       <section class="view" id="historyView">
         <div class="history-actions">
-          <button class="secondary-button" id="sampleButton" type="button">サンプル追加</button>
+          <button class="secondary-button" id="sampleButton" type="button">サンプル</button>
+          <button class="secondary-button" id="importButton" type="button">復元</button>
           <button class="danger-button" id="clearButton" type="button">全削除</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden />
         </div>
         <ol class="history-list" id="historyList"></ol>
       </section>
